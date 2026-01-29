@@ -14,8 +14,8 @@ from telegram.ext import (
     filters
 )
 
-TOKEN = os.environ.get("8466098625:AAGmKlIgj5oYBo33dLFnB60OGTqy9YNJCtM")
-WEBHOOK_URL = os.environ.get("https://2-frji.onrender.com")
+TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
 GROUP_USERNAME = None
 CHANNEL_USERNAME = None
