@@ -11,7 +11,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 if not TOKEN or not WEBHOOK_URL:
     raise RuntimeError("BOT_TOKEN یا WEBHOOK_URL تنظیم نشده")
 
-OWNER_ID = 601668306
+OWNER_ID = 8588773170
 DB_FILE = "db.json"
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
