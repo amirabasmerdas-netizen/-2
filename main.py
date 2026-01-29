@@ -1,111 +1,118 @@
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
+import asyncio
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
 )
+from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN is not set")
+
+bot = Bot(TOKEN)
+dp = Dispatcher()
 
 GROUP_USERNAME = None
 CHANNEL_USERNAME = None
 FORWARD_ENABLED = False
 WAITING_FOR = None
 
+
 def panel():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚙️ تنظیم گروه", callback_data="set_group")],
-        [InlineKeyboardButton("📢 تنظیم کانال", callback_data="set_channel")],
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚙️ تنظیم گروه", callback_data="set_group")],
+        [InlineKeyboardButton(text="📢 تنظیم کانال", callback_data="set_channel")],
         [
-            InlineKeyboardButton("▶️ شروع", callback_data="start_fw"),
-            InlineKeyboardButton("⏸️ توقف", callback_data="stop_fw"),
-        ],
+            InlineKeyboardButton(text="▶️ شروع", callback_data="start_fw"),
+            InlineKeyboardButton(text="⏸️ توقف", callback_data="stop_fw"),
+        ]
     ])
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("پنل مدیریت ربات", reply_markup=panel())
 
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@dp.message(CommandStart())
+async def start(message: Message):
+    await message.answer("🎛 پنل مدیریت ربات", reply_markup=panel())
+
+
+@dp.callback_query()
+async def callbacks(call: CallbackQuery):
     global WAITING_FOR, FORWARD_ENABLED
-    q = update.callback_query
-    await q.answer()
 
-    if q.data == "set_group":
+    data = call.data
+    await call.answer()
+
+    if data == "set_group":
         WAITING_FOR = "group"
-        await q.message.reply_text("یوزرنیم گروه را ارسال کن")
+        await call.message.answer("یوزرنیم گروه رو بفرست (مثال: @mygroup)")
 
-    elif q.data == "set_channel":
+    elif data == "set_channel":
         WAITING_FOR = "channel"
-        await q.message.reply_text("یوزرنیم کانال را ارسال کن")
+        await call.message.answer("یوزرنیم کانال رو بفرست (مثال: @mychannel)")
 
-    elif q.data == "start_fw":
+    elif data == "start_fw":
         FORWARD_ENABLED = True
-        await q.message.reply_text("▶️ فروارد فعال شد")
+        await call.message.answer("▶️ فروارد فعال شد")
 
-    elif q.data == "stop_fw":
+    elif data == "stop_fw":
         FORWARD_ENABLED = False
-        await q.message.reply_text("⏸️ فروارد متوقف شد")
+        await call.message.answer("⏸️ فروارد متوقف شد")
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+@dp.message(F.text)
+async def set_usernames(message: Message):
     global GROUP_USERNAME, CHANNEL_USERNAME, WAITING_FOR
 
     if not WAITING_FOR:
         return
 
-    text = update.message.text.strip()
+    text = message.text.strip()
     if not text.startswith("@"):
-        await update.message.reply_text("یوزرنیم باید با @ شروع شود")
+        await message.answer("❌ یوزرنیم باید با @ شروع بشه")
         return
 
     try:
-        chat = await context.bot.get_chat(text)
-        member = await context.bot.get_chat_member(chat.id, context.bot.id)
+        chat = await bot.get_chat(text)
+        member = await bot.get_chat_member(chat.id, bot.id)
+
         if member.status not in ("administrator", "creator"):
-            await update.message.reply_text("ربات ادمین نیست")
+            await message.answer("❌ ربات ادمین نیست")
             return
 
         if WAITING_FOR == "group":
             GROUP_USERNAME = text
-            await update.message.reply_text("✅ گروه تنظیم شد")
+            await message.answer("✅ گروه تنظیم شد")
 
         elif WAITING_FOR == "channel":
             CHANNEL_USERNAME = text
-            await update.message.reply_text("✅ کانال تنظیم شد")
+            await message.answer("✅ کانال تنظیم شد")
 
         WAITING_FOR = None
-    except:
-        await update.message.reply_text("خطا در بررسی یوزرنیم")
 
-async def forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    except Exception:
+        await message.answer("❌ خطا در بررسی یوزرنیم یا دسترسی")
+
+
+@dp.message()
+async def forward_messages(message: Message):
     if not FORWARD_ENABLED:
         return
     if not GROUP_USERNAME or not CHANNEL_USERNAME:
         return
 
-    if update.effective_chat.username and f"@{update.effective_chat.username}" == GROUP_USERNAME:
-        await update.message.forward(CHANNEL_USERNAME)
+    if message.chat.username and f"@{message.chat.username}" == GROUP_USERNAME:
+        try:
+            await message.forward(CHANNEL_USERNAME)
+        except:
+            pass
 
-def main():
-    app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    app.add_handler(MessageHandler(filters.ALL, forward))
+async def main():
+    await dp.start_polling(bot)
 
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000)),
-        webhook_url=WEBHOOK_URL,
-    )
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
