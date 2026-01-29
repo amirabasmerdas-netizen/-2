@@ -202,7 +202,7 @@ def remove_channel(msg):
         "video_note",
         "contact",
         "location",
-        "poll"
+        "text"
     ]
 )
 def forward_all(msg):
