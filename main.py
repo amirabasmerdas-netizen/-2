@@ -191,18 +191,9 @@ def remove_channel(msg):
 # ---------- فوروارد ----------
 @bot.message_handler(
     content_types=[
-        "text",
-        "photo",
-        "video",
-        "document",
-        "audio",
-        "voice",
-        "sticker",
-        "animation",
-        "video_note",
-        "contact",
-        "location",
-        "text"
+        "text","photo","video","document",
+        "audio","voice","animation","video_note",
+        "sticker","poll","location","contact"
     ]
 )
 def forward_all(msg):
