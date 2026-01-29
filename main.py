@@ -1,7 +1,7 @@
 import os
+import json
 import telebot
 from telebot import types
-import json
 from flask import Flask, request
 
 # ---------- ENV ----------
@@ -33,8 +33,8 @@ except:
 owners = set(db["owners"])
 admins = set(db["admins"])
 allowed_users = set(db["users"])
-groups = db["groups"]
-user_channels = db["channels"]
+groups = db["groups"]              # @group
+user_channels = db["channels"]     # user_id : @channel
 
 def save_db():
     db["owners"] = list(owners)
@@ -70,16 +70,13 @@ def start(msg):
         return
 
     if uid not in allowed_users:
-        bot.send_message(
-            uid,
-            "❌ ربات برای شما فعال نیست\nبرای فعال‌سازی پیام دهید"
-        )
+        bot.send_message(uid, "❌ ربات برای شما فعال نیست")
         return
 
     bot.send_message(uid, "✅ ربات برای شما فعال است")
 
-# ---------- دکمه‌ها ----------
-@bot.message_handler(func=lambda m: True)
+# ---------- دکمه‌ها (فقط متن) ----------
+@bot.message_handler(content_types=["text"])
 def buttons(msg):
     uid = msg.from_user.id
     text = msg.text
@@ -90,11 +87,11 @@ def buttons(msg):
     is_owner = uid in owners
 
     if text == "➕ افزودن کاربر":
-        bot.send_message(uid, "آیدی عددی کاربر را ارسال کنید")
+        bot.send_message(uid, "آیدی عددی کاربر")
         bot.register_next_step_handler(msg, add_user)
 
     elif text == "➖ حذف کاربر":
-        bot.send_message(uid, "آیدی عددی کاربر را ارسال کنید")
+        bot.send_message(uid, "آیدی عددی کاربر")
         bot.register_next_step_handler(msg, remove_user)
 
     elif text == "➕ افزودن گروه":
@@ -121,12 +118,32 @@ def buttons(msg):
         bot.send_message(uid, "آیدی عددی ادمین")
         bot.register_next_step_handler(msg, remove_admin)
 
+    elif text == "📋 لیست کل":
+        bot.send_message(
+            uid,
+            f"""👑 مالکان:
+{owners}
+
+🛠 ادمین‌ها:
+{admins}
+
+👤 کاربران:
+{allowed_users}
+
+👥 گروه‌ها:
+{groups}
+
+📢 کانال‌ها:
+{list(user_channels.values())}
+"""
+        )
+
 # ---------- توابع ----------
 def add_user(msg):
     try:
         allowed_users.add(int(msg.text))
         save_db()
-        bot.send_message(msg.chat.id, "✅ اضافه شد")
+        bot.send_message(msg.chat.id, "✅ انجام شد")
     except:
         bot.send_message(msg.chat.id, "❌ نامعتبر")
 
@@ -134,7 +151,7 @@ def remove_user(msg):
     try:
         allowed_users.discard(int(msg.text))
         save_db()
-        bot.send_message(msg.chat.id, "✅ حذف شد")
+        bot.send_message(msg.chat.id, "✅ انجام شد")
     except:
         bot.send_message(msg.chat.id, "❌ نامعتبر")
 
@@ -142,7 +159,7 @@ def add_admin(msg):
     try:
         admins.add(int(msg.text))
         save_db()
-        bot.send_message(msg.chat.id, "✅ اضافه شد")
+        bot.send_message(msg.chat.id, "✅ انجام شد")
     except:
         bot.send_message(msg.chat.id, "❌ نامعتبر")
 
@@ -150,7 +167,7 @@ def remove_admin(msg):
     try:
         admins.discard(int(msg.text))
         save_db()
-        bot.send_message(msg.chat.id, "✅ حذف شد")
+        bot.send_message(msg.chat.id, "✅ انجام شد")
     except:
         bot.send_message(msg.chat.id, "❌ نامعتبر")
 
@@ -188,11 +205,18 @@ def remove_channel(msg):
             save_db()
             bot.send_message(msg.chat.id, "✅ حذف شد")
 
-# ---------- فوروارد ----------
-@bot.message_handler(content_types=["text", "photo", "video", "document", "audio", "voice", "sticker"])
+# ---------- فوروارد همه‌چی ----------
+@bot.message_handler(
+    content_types=[
+        "text", "photo", "video", "document", "audio", "voice",
+        "sticker", "animation", "video_note", "location",
+        "contact", "poll"
+    ]
+)
 def forward_all(msg):
     if msg.chat.type not in ["group", "supergroup"]:
         return
+
     if not msg.chat.username:
         return
 
@@ -209,9 +233,10 @@ def forward_all(msg):
 # ---------- Webhook ----------
 @app.route("/", methods=["POST"])
 def webhook():
-    bot.process_new_updates(
-        [telebot.types.Update.de_json(request.stream.read().decode("utf-8"))]
+    update = telebot.types.Update.de_json(
+        request.get_data(as_text=True)
     )
+    bot.process_new_updates([update])
     return "OK", 200
 
 @app.route("/", methods=["GET"])
